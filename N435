@@ -1,0 +1,300 @@
+using System;
+using System.Diagnostics;
+using System.Drawing;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace Veziran
+{
+    public partial class MainForm : Form
+    {
+        private TabControl mainTabControl;
+        private TextBox luaTextBox;
+        private Button executeButton;
+        private Label statusLabel;
+        private ColorDialog colorDialog;
+        private bool silentAimEnabled = false;
+        private bool fovEnabled = false;
+        private bool espEnabled = false;
+        private bool skeletonEnabled = false;
+        private bool tracersEnabled = false;
+        private bool boxEnabled = false;
+        private Color espColor = Color.Red;
+
+        public MainForm()
+        {
+            InitializeComponent();
+            this.Icon = new Icon(@"bin\Release\phz.ico");
+            colorDialog = new ColorDialog();
+            colorDialog.FullOpen = true;
+        }
+
+        private void InitializeComponent()
+        {
+            this.Size = new System.Drawing.Size(900, 600);
+            this.Text = "Veziran";
+            this.FormBorderStyle = FormBorderStyle.None;
+            this.BackColor = Color.FromArgb(18, 18, 18);
+            this.ForeColor = Color.Red;
+
+            // Sol panel
+            Panel sidePanel = new Panel();
+            sidePanel.Size = new Size(60, this.Height);
+            sidePanel.Location = new Point(0, 0);
+            sidePanel.BackColor = Color.FromArgb(12, 12, 12);
+            this.Controls.Add(sidePanel);
+
+            // V Logo
+            Label logoLabel = new Label();
+            logoLabel.Text = "V";
+            logoLabel.Font = new Font("Arial", 24, FontStyle.Bold);
+            logoLabel.ForeColor = Color.Red;
+            logoLabel.Size = new Size(40, 40);
+            logoLabel.Location = new Point(10, 10);
+            sidePanel.Controls.Add(logoLabel);
+
+            // Ana Panel
+            Panel mainPanel = new Panel();
+            mainPanel.Size = new Size(this.Width - sidePanel.Width, this.Height);
+            mainPanel.Location = new Point(sidePanel.Width, 0);
+            mainPanel.BackColor = Color.FromArgb(18, 18, 18);
+            this.Controls.Add(mainPanel);
+
+            // Tab Control
+            mainTabControl = new TabControl();
+            mainTabControl.Location = new Point(20, 20);
+            mainTabControl.Size = new Size(mainPanel.Width - 40, mainPanel.Height - 80);
+            mainTabControl.BackColor = Color.FromArgb(18, 18, 18);
+            mainTabControl.ForeColor = Color.White;
+            mainPanel.Controls.Add(mainTabControl);
+
+            // Lua Tab
+            TabPage luaTab = new TabPage("Lua");
+            luaTab.BackColor = Color.FromArgb(18, 18, 18);
+            
+            luaTextBox = new TextBox();
+            luaTextBox.Multiline = true;
+            luaTextBox.Size = new Size(mainTabControl.Width - 20, mainTabControl.Height - 100);
+            luaTextBox.Location = new Point(10, 10);
+            luaTextBox.BackColor = Color.FromArgb(25, 25, 25);
+            luaTextBox.ForeColor = Color.White;
+            luaTextBox.BorderStyle = BorderStyle.None;
+            luaTab.Controls.Add(luaTextBox);
+
+            executeButton = new Button();
+            executeButton.Text = "Execute";
+            executeButton.Size = new Size(100, 30);
+            executeButton.Location = new Point(luaTextBox.Right - 110, luaTextBox.Bottom + 10);
+            executeButton.FlatStyle = FlatStyle.Flat;
+            executeButton.BackColor = Color.FromArgb(18, 18, 18);
+            executeButton.ForeColor = Color.Red;
+            executeButton.Click += ExecuteButton_Click;
+            luaTab.Controls.Add(executeButton);
+
+            // Cheats Tab
+            TabPage cheatsTab = new TabPage("Cheats");
+            cheatsTab.BackColor = Color.FromArgb(18, 18, 18);
+
+            // Silent Aim Toggle
+            Button silentAimButton = new Button();
+            silentAimButton.Text = "Silent Aim: Off";
+            silentAimButton.Size = new Size(200, 30);
+            silentAimButton.Location = new Point(20, 20);
+            silentAimButton.FlatStyle = FlatStyle.Flat;
+            silentAimButton.BackColor = Color.FromArgb(25, 25, 25);
+            silentAimButton.ForeColor = Color.Red;
+            silentAimButton.Click += (s, e) => {
+                silentAimEnabled = !silentAimEnabled;
+                silentAimButton.Text = "Silent Aim: " + (silentAimEnabled ? "On" : "Off");
+                silentAimButton.ForeColor = silentAimEnabled ? Color.Lime : Color.Red;
+            };
+            cheatsTab.Controls.Add(silentAimButton);
+
+            // FoV Toggle
+            Button fovButton = new Button();
+            fovButton.Text = "FoV: Off";
+            fovButton.Size = new Size(200, 30);
+            fovButton.Location = new Point(20, 60);
+            fovButton.FlatStyle = FlatStyle.Flat;
+            fovButton.BackColor = Color.FromArgb(25, 25, 25);
+            fovButton.ForeColor = Color.Red;
+            fovButton.Click += (s, e) => {
+                fovEnabled = !fovEnabled;
+                fovButton.Text = "FoV: " + (fovEnabled ? "On" : "Off");
+                fovButton.ForeColor = fovEnabled ? Color.Lime : Color.Red;
+            };
+            cheatsTab.Controls.Add(fovButton);
+
+            // ESP Toggle
+            Button espButton = new Button();
+            espButton.Text = "ESP: Off";
+            espButton.Size = new Size(200, 30);
+            espButton.Location = new Point(20, 100);
+            espButton.FlatStyle = FlatStyle.Flat;
+            espButton.BackColor = Color.FromArgb(25, 25, 25);
+            espButton.ForeColor = Color.Red;
+            espButton.Click += (s, e) => {
+                espEnabled = !espEnabled;
+                espButton.Text = "ESP: " + (espEnabled ? "On" : "Off");
+                espButton.ForeColor = espEnabled ? Color.Lime : Color.Red;
+            };
+            cheatsTab.Controls.Add(espButton);
+
+            // Skeleton ESP Toggle
+            Button skeletonButton = new Button();
+            skeletonButton.Text = "Skeleton ESP: Off";
+            skeletonButton.Size = new Size(200, 30);
+            skeletonButton.Location = new Point(20, 140);
+            skeletonButton.FlatStyle = FlatStyle.Flat;
+            skeletonButton.BackColor = Color.FromArgb(25, 25, 25);
+            skeletonButton.ForeColor = Color.Red;
+            skeletonButton.Click += (s, e) => {
+                skeletonEnabled = !skeletonEnabled;
+                skeletonButton.Text = "Skeleton ESP: " + (skeletonEnabled ? "On" : "Off");
+                skeletonButton.ForeColor = skeletonEnabled ? Color.Lime : Color.Red;
+            };
+            cheatsTab.Controls.Add(skeletonButton);
+
+            // Tracers Toggle
+            Button tracersButton = new Button();
+            tracersButton.Text = "Tracers: Off";
+            tracersButton.Size = new Size(200, 30);
+            tracersButton.Location = new Point(20, 180);
+            tracersButton.FlatStyle = FlatStyle.Flat;
+            tracersButton.BackColor = Color.FromArgb(25, 25, 25);
+            tracersButton.ForeColor = Color.Red;
+            tracersButton.Click += (s, e) => {
+                tracersEnabled = !tracersEnabled;
+                tracersButton.Text = "Tracers: " + (tracersEnabled ? "On" : "Off");
+                tracersButton.ForeColor = tracersEnabled ? Color.Lime : Color.Red;
+            };
+            cheatsTab.Controls.Add(tracersButton);
+
+            // Box ESP Toggle
+            Button boxButton = new Button();
+            boxButton.Text = "Box ESP: Off";
+            boxButton.Size = new Size(200, 30);
+            boxButton.Location = new Point(20, 220);
+            boxButton.FlatStyle = FlatStyle.Flat;
+            boxButton.BackColor = Color.FromArgb(25, 25, 25);
+            boxButton.ForeColor = Color.Red;
+            boxButton.Click += (s, e) => {
+                boxEnabled = !boxEnabled;
+                boxButton.Text = "Box ESP: " + (boxEnabled ? "On" : "Off");
+                boxButton.ForeColor = boxEnabled ? Color.Lime : Color.Red;
+            };
+            cheatsTab.Controls.Add(boxButton);
+
+            // ESP Color Button
+            Button colorButton = new Button();
+            colorButton.Text = "All ESP's Color";
+            colorButton.Size = new Size(200, 30);
+            colorButton.Location = new Point(20, 260);
+            colorButton.FlatStyle = FlatStyle.Flat;
+            colorButton.BackColor = Color.FromArgb(25, 25, 25);
+            colorButton.ForeColor = Color.Red;
+            colorButton.Click += (s, e) => {
+                if (colorDialog.ShowDialog(this) == DialogResult.OK)
+                {
+                    espColor = colorDialog.Color;
+                    colorButton.ForeColor = espColor;
+                }
+            };
+            cheatsTab.Controls.Add(colorButton);
+
+            // Close Button
+            Button closeButton = new Button();
+            closeButton.Text = "X";
+            closeButton.Size = new Size(30, 30);
+            closeButton.Location = new Point(mainPanel.Width - 40, 10);
+            closeButton.FlatStyle = FlatStyle.Flat;
+            closeButton.BackColor = Color.FromArgb(25, 25, 25);
+            closeButton.ForeColor = Color.Red;
+            closeButton.Click += (s, e) => Application.Exit();
+            mainPanel.Controls.Add(closeButton);
+            closeButton.BringToFront();
+
+            // Status Label
+            statusLabel = new Label();
+            statusLabel.Text = "Licensed to: 153032                                Build: Dec 22 2024";
+            statusLabel.ForeColor = Color.Gray;
+            statusLabel.Font = new Font("Segoe UI", 8);
+            statusLabel.AutoSize = true;
+            statusLabel.Location = new Point(20, this.Height - 30);
+            mainPanel.Controls.Add(statusLabel);
+
+            // Add tabs
+            mainTabControl.TabPages.Add(luaTab);
+            mainTabControl.TabPages.Add(cheatsTab);
+
+            // Form'u sürüklenebilir yap
+            this.MouseDown += Form_MouseDown;
+            mainPanel.MouseDown += Form_MouseDown;
+            foreach (Control control in mainPanel.Controls)
+            {
+                control.MouseDown += Form_MouseDown;
+            }
+            foreach (TabPage tab in mainTabControl.TabPages)
+            {
+                tab.MouseDown += Form_MouseDown;
+                foreach (Control control in tab.Controls)
+                {
+                    control.MouseDown += Form_MouseDown;
+                }
+            }
+        }
+
+        private async void ExecuteButton_Click(object sender, EventArgs e)
+        {
+            executeButton.Enabled = false;
+            executeButton.Text = "Executing...";
+            
+            // Simulate execution with CMD windows
+            for (int i = 0; i < 4; i++)
+            {
+                Process cmd = new Process();
+                cmd.StartInfo.FileName = "cmd.exe";
+                cmd.StartInfo.WindowStyle = ProcessWindowStyle.Normal;
+                cmd.Start();
+                await Task.Delay(200);
+                cmd.Kill();
+            }
+
+            await Task.Delay(1000);
+
+            // Check if FiveM is running
+            Process[] fivemProcesses = Process.GetProcessesByName("FiveM");
+            if (fivemProcesses.Length > 0)
+            {
+                MessageBox.Show("Lua code executed successfully!", "Success", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                MessageBox.Show("Please open FiveM first!", "Error", 
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+
+            executeButton.Text = "Execute";
+            executeButton.Enabled = true;
+        }
+
+        private void Form_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (e.Button == MouseButtons.Left)
+            {
+                NativeMethods.ReleaseCapture();
+                NativeMethods.SendMessage(Handle, 0xA1, 0x2, 0);
+            }
+        }
+    }
+
+    internal static class NativeMethods
+    {
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern bool ReleaseCapture();
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        internal static extern int SendMessage(IntPtr hWnd, int Msg, int wParam, int lParam);
+    }
+}
