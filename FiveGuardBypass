@@ -1,0 +1,819 @@
+// FiveGuard Bypass v2.5
+// Author: Veziran
+// Last Updated: 19.03.2025
+
+#include <Windows.h>
+#include <TlHelp32.h>
+#include <vector>
+#include <string>
+#include <thread>
+#include <map>
+#include <random>
+
+class FiveGuardBypass {
+private:
+    struct MemoryRegion {
+        DWORD_PTR start;
+        SIZE_T size;
+    };
+
+    struct Config {
+        bool enabled = true;
+        bool debug = false;
+        bool autoReconnect = true;
+        int delay = 100;
+        std::vector<std::string> methods = {"memory", "hash", "native", "resource"};
+    } config;
+
+    // Memory addresses
+    const std::map<std::string, DWORD_PTR> memoryAddresses = {
+        {"guard_main", 0x8A4B2C0},
+        {"guard_check", 0x8A4B2C8},
+        {"guard_heartbeat", 0x8A4B2D0},
+        {"guard_resource", 0x8A4B2D8}
+    };
+
+    std::vector<std::thread> protectionThreads;
+    std::map<DWORD_PTR, DWORD> memoryPatches;
+    
+    // Native function hook
+    typedef BOOL(WINAPI* _NtProtectVirtualMemory)(
+        HANDLE ProcessHandle,
+        PVOID* BaseAddress,
+        PSIZE_T RegionSize,
+        ULONG NewProtect,
+        PULONG OldProtect
+    );
+    _NtProtectVirtualMemory originalNtProtect = nullptr;
+
+public:
+    FiveGuardBypass() {
+        if (config.debug) {
+            printf("[FiveGuard] Initializing bypass...\n");
+        }
+        InitializeHooks();
+    }
+
+    void Initialize() {
+        // Start protection threads
+        StartMemoryProtection();
+        StartAntiDetection();
+        StartIntegrityBypass();
+        
+        if (config.debug) {
+            printf("[FiveGuard] Bypass initialized successfully\n");
+        }
+    }
+
+private:
+    void InitializeHooks() {
+        HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+        if (ntdll) {
+            originalNtProtect = (_NtProtectVirtualMemory)GetProcAddress(ntdll, "NtProtectVirtualMemory");
+            if (originalNtProtect) {
+                // Hook the function
+                DWORD oldProtect;
+                VirtualProtect(originalNtProtect, sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect);
+                // Implement hook...
+                VirtualProtect(originalNtProtect, sizeof(void*), oldProtect, &oldProtect);
+            }
+        }
+    }
+
+    void StartMemoryProtection() {
+        std::vector<MemoryRegion> protectedRegions = {
+            {0x8A000000, 0x1000000},
+            {0x8B000000, 0x1000000},
+            {0x8C000000, 0x1000000}
+        };
+
+        protectionThreads.emplace_back([this, protectedRegions]() {
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<> dis(1000000, 9999999);
+
+            while (config.enabled) {
+                for (const auto& region : protectedRegions) {
+                    DWORD key = dis(gen);
+                    for (DWORD_PTR addr = region.start; addr < region.start + region.size; addr += 0x1000) {
+                        memoryPatches[addr] = key;
+                    }
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+            }
+        });
+    }
+
+    void StartAntiDetection() {
+        protectionThreads.emplace_back([this]() {
+            struct GameState {
+                std::string name;
+                int duration;
+            };
+
+            std::vector<GameState> states = {
+                {"walking", 1500},
+                {"running", 2000},
+                {"driving", 3000},
+                {"shooting", 1000}
+            };
+
+            while (config.enabled) {
+                for (const auto& state : states) {
+                    // Simulate legitimate player activity
+                    SendFakeState(state.name);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(state.duration));
+                }
+            }
+        });
+    }
+
+    void StartIntegrityBypass() {
+        protectionThreads.emplace_back([this]() {
+            const std::map<std::string, std::string> fakeHashes = {
+                {"client.dll", "8f7d3b2e1a9c4d5e"},
+                {"server.dll", "7c6b5a4d3e2f1b8a"},
+                {"fiveguard.net", "9e8d7c6b5a4f3e2d"}
+            };
+
+            while (config.enabled) {
+                // Send fake integrity data
+                SendIntegrityResponse(fakeHashes);
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            }
+        });
+    }
+
+    void PatchMemory() {
+        for (const auto& [name, address] : memoryAddresses) {
+            DWORD oldProtect;
+            VirtualProtect((LPVOID)address, 4, PAGE_EXECUTE_READWRITE, &oldProtect);
+            *(DWORD*)address = 0x90909090; // NOP sled
+            VirtualProtect((LPVOID)address, 4, oldProtect, &oldProtect);
+        }
+    }
+
+    void SendFakeState(const std::string& state) {
+        // Simulate network packet
+        struct StatePacket {
+            char action[32];
+            DWORD timestamp;
+            float position[3];
+        } packet;
+
+        strcpy_s(packet.action, state.c_str());
+        packet.timestamp = GetTickCount();
+        packet.position[0] = 0.0f;
+        packet.position[1] = 0.0f;
+        packet.position[2] = 0.0f;
+
+        // Send encrypted packet
+        std::vector<BYTE> encrypted(sizeof(packet));
+        memcpy(encrypted.data(), &packet, sizeof(packet));
+        for (BYTE& b : encrypted) {
+            b ^= 0x55; // Simple XOR encryption
+        }
+    }
+
+    void SendIntegrityResponse(const std::map<std::string, std::string>& hashes) {
+        std::string response = "{\"status\":true,\"hashes\":{";
+        for (const auto& [file, hash] : hashes) {
+            response += "\"" + file + "\":\"" + hash + "\",";
+        }
+        response.pop_back(); // Remove last comma
+        response += "}}";
+
+        // Encrypt and send response
+        std::vector<BYTE> encrypted(response.begin(), response.end());
+        for (BYTE& b : encrypted) {
+            b ^= 0x55;
+        }
+    }
+
+public:
+    void EnableBypass() {
+        config.enabled = true;
+        if (config.debug) {
+            printf("[FiveGuard] Bypass enabled\n");
+        }
+    }
+
+    void DisableBypass() {
+        config.enabled = false;
+        if (config.debug) {
+            printf("[FiveGuard] Bypass disabled\n");
+        }
+    }
+
+    ~FiveGuardBypass() {
+        DisableBypass();
+        for (auto& thread : protectionThreads) {
+            if (thread.joinable()) {
+                thread.join();
+            }
+        }
+    }
+};
+
+// Advanced memory manipulation and protection
+class MemoryManager {
+private:
+    struct ProtectedRegion {
+        LPVOID address;
+        SIZE_T size;
+        DWORD protection;
+        std::vector<BYTE> originalBytes;
+    };
+    
+    std::vector<ProtectedRegion> protectedRegions;
+    HANDLE processHandle;
+    
+public:
+    MemoryManager() : processHandle(GetCurrentProcess()) {
+        InitializeProtectedRegions();
+    }
+    
+    void InitializeProtectedRegions() {
+        MEMORY_BASIC_INFORMATION mbi;
+        LPVOID address = nullptr;
+        
+        while (VirtualQueryEx(processHandle, address, &mbi, sizeof(mbi))) {
+            if (mbi.State == MEM_COMMIT && 
+                (mbi.Protect == PAGE_EXECUTE_READ || mbi.Protect == PAGE_EXECUTE_READWRITE)) {
+                ProtectedRegion region;
+                region.address = mbi.BaseAddress;
+                region.size = mbi.RegionSize;
+                region.protection = mbi.Protect;
+                
+                // Store original bytes
+                region.originalBytes.resize(region.size);
+                ReadProcessMemory(processHandle, region.address, 
+                    region.originalBytes.data(), region.size, nullptr);
+                
+                protectedRegions.push_back(region);
+            }
+            address = (LPVOID)((DWORD_PTR)mbi.BaseAddress + mbi.RegionSize);
+        }
+    }
+    
+    void ApplyMemoryPatches() {
+        for (auto& region : protectedRegions) {
+            DWORD oldProtect;
+            if (VirtualProtect(region.address, region.size, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+                // Apply sophisticated pattern of NOPs and jumps
+                std::vector<BYTE> patch(region.size);
+                for (size_t i = 0; i < region.size; i += 16) {
+                    // NOP sled
+                    patch[i] = 0x90;
+                    // JMP relative short
+                    if (i + 1 < region.size) patch[i + 1] = 0xEB;
+                    // Jump distance
+                    if (i + 2 < region.size) patch[i + 2] = 0x08;
+                }
+                
+                WriteProcessMemory(processHandle, region.address, 
+                    patch.data(), region.size, nullptr);
+                
+                VirtualProtect(region.address, region.size, oldProtect, &oldProtect);
+            }
+        }
+    }
+    
+    void RestoreOriginalBytes() {
+        for (auto& region : protectedRegions) {
+            DWORD oldProtect;
+            if (VirtualProtect(region.address, region.size, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+                WriteProcessMemory(processHandle, region.address,
+                    region.originalBytes.data(), region.size, nullptr);
+                VirtualProtect(region.address, region.size, region.protection, &oldProtect);
+            }
+        }
+    }
+};
+
+// Advanced encryption for network traffic
+class NetworkEncryption {
+private:
+    std::vector<BYTE> key;
+    const int KEY_SIZE = 32;
+    
+    void GenerateKey() {
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::uniform_int_distribution<> dis(0, 255);
+        
+        key.resize(KEY_SIZE);
+        for (int i = 0; i < KEY_SIZE; i++) {
+            key[i] = static_cast<BYTE>(dis(gen));
+        }
+    }
+    
+public:
+    NetworkEncryption() {
+        GenerateKey();
+    }
+    
+    std::vector<BYTE> EncryptPacket(const std::vector<BYTE>& data) {
+        std::vector<BYTE> encrypted(data.size());
+        for (size_t i = 0; i < data.size(); i++) {
+            encrypted[i] = data[i] ^ key[i % KEY_SIZE];
+            // Add additional confusion
+            encrypted[i] = (encrypted[i] << 4) | (encrypted[i] >> 4);
+        }
+        return encrypted;
+    }
+    
+    std::vector<BYTE> DecryptPacket(const std::vector<BYTE>& encrypted) {
+        std::vector<BYTE> decrypted(encrypted.size());
+        for (size_t i = 0; i < encrypted.size(); i++) {
+            // Reverse confusion
+            BYTE temp = (encrypted[i] >> 4) | (encrypted[i] << 4);
+            decrypted[i] = temp ^ key[i % KEY_SIZE];
+        }
+        return decrypted;
+    }
+};
+
+// Advanced syscall hooking and manipulation
+class SyscallHook {
+private:
+    struct HookEntry {
+        DWORD syscallNumber;
+        LPVOID originalFunction;
+        LPVOID hookFunction;
+        BYTE originalBytes[24];
+    };
+
+    std::vector<HookEntry> hooks;
+    
+    // Shellcode template for syscall hook
+    const BYTE hookTemplate[24] = {
+        0x48, 0xB8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // mov rax, hook_addr
+        0xFF, 0xE0,                                                    // jmp rax
+        0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90,             // nops
+        0x90, 0x90, 0x90, 0x90                                       // nops
+    };
+
+public:
+    bool HookSyscall(DWORD syscallNum, LPVOID hookFunc) {
+        HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+        if (!ntdll) return false;
+
+        // Find syscall stub
+        char syscallName[50];
+        sprintf_s(syscallName, "Nt%dStub", syscallNum);
+        LPVOID syscallAddr = GetProcAddress(ntdll, syscallName);
+        if (!syscallAddr) return false;
+
+        // Create hook entry
+        HookEntry entry;
+        entry.syscallNumber = syscallNum;
+        entry.originalFunction = syscallAddr;
+        entry.hookFunction = hookFunc;
+        memcpy(entry.originalBytes, syscallAddr, sizeof(entry.originalBytes));
+
+        // Prepare hook shellcode
+        BYTE hookCode[24];
+        memcpy(hookCode, hookTemplate, sizeof(hookCode));
+        *(LPVOID*)(hookCode + 2) = hookFunc;
+
+        // Apply hook
+        DWORD oldProtect;
+        if (VirtualProtect(syscallAddr, sizeof(hookCode), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            memcpy(syscallAddr, hookCode, sizeof(hookCode));
+            VirtualProtect(syscallAddr, sizeof(hookCode), oldProtect, &oldProtect);
+            hooks.push_back(entry);
+            return true;
+        }
+
+        return false;
+    }
+
+    void RestoreAllHooks() {
+        for (const auto& hook : hooks) {
+            DWORD oldProtect;
+            if (VirtualProtect(hook.originalFunction, sizeof(hook.originalBytes),
+                PAGE_EXECUTE_READWRITE, &oldProtect)) {
+                memcpy(hook.originalFunction, hook.originalBytes, sizeof(hook.originalBytes));
+                VirtualProtect(hook.originalFunction, sizeof(hook.originalBytes),
+                    oldProtect, &oldProtect);
+            }
+        }
+        hooks.clear();
+    }
+};
+
+// Advanced anti-debugging techniques
+class AntiDebug {
+private:
+    struct DebuggerCheck {
+        const char* name;
+        std::function<bool()> check;
+    };
+
+    std::vector<DebuggerCheck> checks;
+    
+    // Hardware breakpoint detection
+    bool CheckHardwareBreakpoints() {
+        CONTEXT ctx;
+        ctx.ContextFlags = CONTEXT_DEBUG_REGISTERS;
+        if (GetThreadContext(GetCurrentThread(), &ctx)) {
+            return ctx.Dr0 != 0 || ctx.Dr1 != 0 || ctx.Dr2 != 0 || ctx.Dr3 != 0;
+        }
+        return false;
+    }
+    
+    // Timing check
+    bool CheckTiming() {
+        LARGE_INTEGER freq, start, end;
+        QueryPerformanceFrequency(&freq);
+        QueryPerformanceCounter(&start);
+        
+        // Execute dummy instructions
+        for (volatile int i = 0; i < 1000; i++);
+        
+        QueryPerformanceCounter(&end);
+        double elapsed = (end.QuadPart - start.QuadPart) * 1000.0 / freq.QuadPart;
+        return elapsed > 1.0; // Too slow = debugger
+    }
+    
+    // Process environment check
+    bool CheckProcessEnvironment() {
+        typedef NTSTATUS(NTAPI* pNtQueryInformationProcess)(
+            HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
+            
+        HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+        if (!ntdll) return false;
+        
+        auto NtQueryInformationProcess = (pNtQueryInformationProcess)
+            GetProcAddress(ntdll, "NtQueryInformationProcess");
+            
+        if (!NtQueryInformationProcess) return false;
+        
+        DWORD processDebugPort = 0;
+        NTSTATUS status = NtQueryInformationProcess(
+            GetCurrentProcess(),
+            ProcessDebugPort,
+            &processDebugPort,
+            sizeof(processDebugPort),
+            nullptr
+        );
+        
+        return NT_SUCCESS(status) && processDebugPort != 0;
+    }
+
+public:
+    AntiDebug() {
+        // Initialize debug checks
+        checks = {
+            {"Hardware Breakpoints", std::bind(&AntiDebug::CheckHardwareBreakpoints, this)},
+            {"Timing Analysis", std::bind(&AntiDebug::CheckTiming, this)},
+            {"Process Environment", std::bind(&AntiDebug::CheckProcessEnvironment, this)}
+        };
+    }
+    
+    bool IsDebuggerPresent() {
+        for (const auto& check : checks) {
+            if (check.check()) {
+                printf("[AntiDebug] Detected: %s\n", check.name);
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    void InitializeProtection() {
+        // Set up exception handler
+        SetUnhandledExceptionFilter([](EXCEPTION_POINTERS* ExceptionInfo) -> LONG {
+            if (ExceptionInfo->ExceptionRecord->ExceptionCode == EXCEPTION_BREAKPOINT ||
+                ExceptionInfo->ExceptionRecord->ExceptionCode == EXCEPTION_SINGLE_STEP) {
+                // Detected debugging attempt
+                ExitProcess(0);
+            }
+            return EXCEPTION_CONTINUE_SEARCH;
+        });
+        
+        // Start monitoring thread
+        std::thread([this]() {
+            while (true) {
+                if (IsDebuggerPresent()) {
+                    // Corrupt process memory and exit
+                    HANDLE process = GetCurrentProcess();
+                    char* ptr = nullptr;
+                    for (size_t i = 0; i < 1024*1024; i++) {
+                        ptr[i] = rand() % 256;
+                    }
+                    TerminateProcess(process, 0);
+                }
+                Sleep(100);
+            }
+        }).detach();
+    }
+};
+
+// Advanced code virtualization
+class CodeVirtualizer {
+private:
+    struct VirtualizedBlock {
+        std::vector<BYTE> originalCode;
+        std::vector<BYTE> virtualizedCode;
+        DWORD_PTR address;
+        SIZE_T size;
+    };
+
+    std::vector<VirtualizedBlock> virtualizedBlocks;
+    
+    // Custom virtual machine opcodes
+    enum VMOpcode {
+        VM_NOP = 0x00,
+        VM_PUSH = 0x01,
+        VM_POP = 0x02,
+        VM_ADD = 0x03,
+        VM_SUB = 0x04,
+        VM_XOR = 0x05,
+        VM_JMP = 0x06,
+        VM_CALL = 0x07,
+        VM_RET = 0x08
+    };
+
+    // Virtual machine context
+    struct VMContext {
+        DWORD_PTR registers[16];
+        std::vector<DWORD_PTR> stack;
+        BYTE* codePtr;
+        bool running;
+    };
+
+    // Virtualization engine
+    std::vector<BYTE> VirtualizeCode(const std::vector<BYTE>& originalCode) {
+        std::vector<BYTE> virtualCode;
+        
+        for (size_t i = 0; i < originalCode.size(); i++) {
+            // Convert x86/x64 instructions to VM instructions
+            switch (originalCode[i]) {
+                case 0x90: // NOP
+                    virtualCode.push_back(VM_NOP);
+                    break;
+                    
+                case 0x50: // PUSH
+                    virtualCode.push_back(VM_PUSH);
+                    virtualCode.push_back(originalCode[++i]);
+                    break;
+                    
+                case 0x58: // POP
+                    virtualCode.push_back(VM_POP);
+                    break;
+                    
+                case 0x01: // ADD
+                    virtualCode.push_back(VM_ADD);
+                    break;
+                    
+                case 0x29: // SUB
+                    virtualCode.push_back(VM_SUB);
+                    break;
+                    
+                case 0x31: // XOR
+                    virtualCode.push_back(VM_XOR);
+                    break;
+                    
+                case 0xE9: // JMP
+                case 0xEB:
+                    virtualCode.push_back(VM_JMP);
+                    // Copy jump offset
+                    for (int j = 0; j < 4; j++) {
+                        virtualCode.push_back(originalCode[++i]);
+                    }
+                    break;
+                    
+                case 0xE8: // CALL
+                    virtualCode.push_back(VM_CALL);
+                    // Copy call address
+                    for (int j = 0; j < 4; j++) {
+                        virtualCode.push_back(originalCode[++i]);
+                    }
+                    break;
+                    
+                case 0xC3: // RET
+                    virtualCode.push_back(VM_RET);
+                    break;
+                    
+                default:
+                    // Unknown instruction, add as data
+                    virtualCode.push_back(originalCode[i]);
+                    break;
+            }
+        }
+        
+        return virtualCode;
+    }
+
+    // VM instruction executor
+    void ExecuteVirtualizedCode(VMContext& ctx) {
+        while (ctx.running) {
+            BYTE opcode = *ctx.codePtr++;
+            
+            switch (opcode) {
+                case VM_NOP:
+                    break;
+                    
+                case VM_PUSH:
+                    ctx.stack.push_back(*ctx.codePtr++);
+                    break;
+                    
+                case VM_POP:
+                    if (!ctx.stack.empty()) {
+                        ctx.registers[0] = ctx.stack.back();
+                        ctx.stack.pop_back();
+                    }
+                    break;
+                    
+                case VM_ADD: {
+                    if (ctx.stack.size() >= 2) {
+                        DWORD_PTR op2 = ctx.stack.back();
+                        ctx.stack.pop_back();
+                        DWORD_PTR op1 = ctx.stack.back();
+                        ctx.stack.pop_back();
+                        ctx.stack.push_back(op1 + op2);
+                    }
+                    break;
+                }
+                
+                case VM_SUB: {
+                    if (ctx.stack.size() >= 2) {
+                        DWORD_PTR op2 = ctx.stack.back();
+                        ctx.stack.pop_back();
+                        DWORD_PTR op1 = ctx.stack.back();
+                        ctx.stack.pop_back();
+                        ctx.stack.push_back(op1 - op2);
+                    }
+                    break;
+                }
+                
+                case VM_XOR: {
+                    if (ctx.stack.size() >= 2) {
+                        DWORD_PTR op2 = ctx.stack.back();
+                        ctx.stack.pop_back();
+                        DWORD_PTR op1 = ctx.stack.back();
+                        ctx.stack.pop_back();
+                        ctx.stack.push_back(op1 ^ op2);
+                    }
+                    break;
+                }
+                
+                case VM_JMP: {
+                    DWORD offset = *(DWORD*)ctx.codePtr;
+                    ctx.codePtr += sizeof(DWORD);
+                    ctx.codePtr += offset;
+                    break;
+                }
+                
+                case VM_CALL: {
+                    DWORD_PTR returnAddr = (DWORD_PTR)(ctx.codePtr + sizeof(DWORD));
+                    ctx.stack.push_back(returnAddr);
+                    DWORD offset = *(DWORD*)ctx.codePtr;
+                    ctx.codePtr += sizeof(DWORD);
+                    ctx.codePtr += offset;
+                    break;
+                }
+                
+                case VM_RET: {
+                    if (!ctx.stack.empty()) {
+                        DWORD_PTR returnAddr = ctx.stack.back();
+                        ctx.stack.pop_back();
+                        ctx.codePtr = (BYTE*)returnAddr;
+                    } else {
+                        ctx.running = false;
+                    }
+                    break;
+                }
+                
+                default:
+                    // Unknown opcode, skip
+                    break;
+            }
+        }
+    }
+
+public:
+    bool VirtualizeFunction(LPVOID function, SIZE_T size) {
+        if (!function || size == 0) return false;
+
+        // Create virtualized block
+        VirtualizedBlock block;
+        block.address = (DWORD_PTR)function;
+        block.size = size;
+        
+        // Copy original code
+        block.originalCode.resize(size);
+        memcpy(block.originalCode.data(), function, size);
+        
+        // Virtualize code
+        block.virtualizedCode = VirtualizeCode(block.originalCode);
+        
+        // Store block
+        virtualizedBlocks.push_back(block);
+        
+        // Replace original code with virtualized handler
+        DWORD oldProtect;
+        if (VirtualProtect(function, size, PAGE_EXECUTE_READWRITE, &oldProtect)) {
+            // Write jump to VM handler
+            BYTE jumpCode[] = {
+                0x48, 0xB8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // mov rax, vm_handler
+                0xFF, 0xE0                                                     // jmp rax
+            };
+            
+            *(LPVOID*)(jumpCode + 2) = &ExecuteVirtualizedCode;
+            memcpy(function, jumpCode, sizeof(jumpCode));
+            
+            // Fill rest with NOPs
+            memset((BYTE*)function + sizeof(jumpCode), 0x90, size - sizeof(jumpCode));
+            
+            VirtualProtect(function, size, oldProtect, &oldProtect);
+            return true;
+        }
+        
+        return false;
+    }
+};
+
+// Process hollowing technique
+class ProcessHollowing {
+private:
+    HANDLE targetProcess;
+    LPVOID targetBase;
+    
+    bool CreateSuspendedProcess(const std::wstring& path) {
+        STARTUPINFOW si = { sizeof(si) };
+        PROCESS_INFORMATION pi;
+        
+        if (CreateProcessW(path.c_str(), nullptr, nullptr, nullptr, FALSE,
+            CREATE_SUSPENDED, nullptr, nullptr, &si, &pi)) {
+            targetProcess = pi.hProcess;
+            return true;
+        }
+        return false;
+    }
+    
+    bool HollowProcess(const std::vector<BYTE>& payload) {
+        CONTEXT ctx;
+        ctx.ContextFlags = CONTEXT_FULL;
+        
+        if (GetThreadContext(targetProcess, &ctx)) {
+            // Read PEB
+            LPVOID pebAddress;
+#ifdef _WIN64
+            pebAddress = (LPVOID)ctx.Rdx;
+#else
+            pebAddress = (LPVOID)ctx.Ebx;
+#endif
+            
+            // Unmap original executable
+            LPVOID baseAddress;
+            ReadProcessMemory(targetProcess, (LPVOID)((DWORD_PTR)pebAddress + 0x10),
+                &baseAddress, sizeof(baseAddress), nullptr);
+            
+            if (baseAddress) {
+                // Allocate memory for new payload
+                targetBase = VirtualAllocEx(targetProcess, nullptr, payload.size(),
+                    MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+                
+                if (targetBase) {
+                    // Write payload
+                    WriteProcessMemory(targetProcess, targetBase,
+                        payload.data(), payload.size(), nullptr);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+public:
+    bool HollowAndInject(const std::wstring& targetPath, const std::vector<BYTE>& payload) {
+        if (CreateSuspendedProcess(targetPath)) {
+            if (HollowProcess(payload)) {
+                // Resume process with new payload
+                HANDLE hThread;
+                CreateRemoteThread(targetProcess, nullptr, 0,
+                    (LPTHREAD_START_ROUTINE)targetBase, nullptr, 0, nullptr);
+                return true;
+            }
+            TerminateProcess(targetProcess, 0);
+        }
+        return false;
+    }
+};
+
+// Entry point
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    FiveGuardBypass bypass;
+    bypass.Initialize();
+    
+    MSG msg;
+    while (GetMessage(&msg, nullptr, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    
+    return (int)msg.wParam;
+}
