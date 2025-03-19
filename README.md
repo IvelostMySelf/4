@@ -1,3 +1,3 @@
-# woupping ile deneme
+# Doğukan'a özel lua exc
 Maded with C++ and C# also used Lua btw.
 C++/C# VE LUA İLE YAPILMIŞTIR !
